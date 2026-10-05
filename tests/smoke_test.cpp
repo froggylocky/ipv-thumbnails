@@ -1,4 +1,4 @@
-// smoke_test.cpp - loads IpvThumb.dll directly (no registration needed), asks it
+// smoke_test.cpp (v3: no user32 dependency) - loads IpvThumb.dll directly (no registration needed), asks it
 // for a 256px thumbnail the same way Explorer does, and checks the result.
 //
 //   smoke_test.exe IpvThumb.dll file.ipv <width> <height>   expect a thumbnail of that size
@@ -111,9 +111,9 @@ int wmain(int argc, wchar_t** argv) {
     bi.bmiHeader.biPlanes      = 1;
     bi.bmiHeader.biBitCount    = 32;
     bi.bmiHeader.biCompression = BI_RGB;
-    HDC dc = GetDC(nullptr);
-    const int lines = GetDIBits(dc, hbmp, 0, (UINT)h, pixels.data(), &bi, DIB_RGB_COLORS);
-    ReleaseDC(nullptr, dc);
+    HDC dc = CreateCompatibleDC(nullptr);                  // gdi32 only, no user32 needed
+    const int lines = dc ? GetDIBits(dc, hbmp, 0, (UINT)h, pixels.data(), &bi, DIB_RGB_COLORS) : 0;
+    if (dc) DeleteDC(dc);
     DeleteObject(hbmp);                                    // safe: we only use our copy now
     if (lines != h) return Fail("GetDIBits", E_FAIL);
     auto px = [&](int x, int y) { return &pixels[((size_t)y * w + x) * 4]; };   // BGRA
