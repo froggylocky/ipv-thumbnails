@@ -1,0 +1,110 @@
+name: Build
+
+# Every push/PR builds and tests. Pushing a tag like v1.0.0 also publishes a
+# GitHub Release with the installer and a portable zip attached.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  parser-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build parser test
+        run: g++ -std=c++17 -O2 -Wall -Wextra -Werror -Isrc tests/test_parse.cpp -o test_parse
+      - name: Run parser tests
+        run: |
+          python3 tests/make_samples.py samples
+          shopt -s nullglob
+          for f in samples/good_*.ipv tests/samples/*.ipv; do ./test_parse "$f"; done
+          for f in samples/bad_*.ipv; do
+            if ./test_parse "$f"; then echo "::error::$f should have been rejected"; exit 1; fi
+          done
+
+  build:
+    needs: parser-tests
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            vcvars: amd64
+          - arch: arm64
+            vcvars: amd64_arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.vcvars }}
+      - name: Build DLL
+        shell: cmd
+        run: |
+          mkdir out
+          cl /nologo /O2 /EHsc /W3 /std:c++17 /DUNICODE /D_UNICODE /LD src\IpvThumbnailProvider.cpp /Foout\ /link /DEF:src\IpvThumb.def /OUT:out\IpvThumb.dll || exit /b 1
+      - name: Smoke test (load the DLL and render thumbnails like Explorer does)
+        if: matrix.arch == 'x64'
+        shell: cmd
+        run: |
+          cl /nologo /EHsc /W3 /std:c++17 /DUNICODE /D_UNICODE tests\smoke_test.cpp /Foout\ /Feout\smoke_test.exe || exit /b 1
+          python tests\make_samples.py samples || exit /b 1
+          out\smoke_test.exe out\IpvThumb.dll samples\good_small.ipv 64 48 || exit /b 1
+          out\smoke_test.exe out\IpvThumb.dll samples\good_large.ipv 256 128 || exit /b 1
+          for %%f in (samples\bad_*.ipv) do ( out\smoke_test.exe out\IpvThumb.dll %%f fail || exit /b 1 )
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dll-${{ matrix.arch }}
+          path: out/IpvThumb.dll
+          if-no-files-found: error
+
+  package:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dll-x64
+          path: dist/x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: dll-arm64
+          path: dist/arm64
+      - name: Work out version
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $v = $env:GITHUB_REF_NAME.Substring(1) }
+          else { $v = "0.0.$env:GITHUB_RUN_NUMBER" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer\IpvThumb.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Build portable zip
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          New-Item -ItemType Directory -Force staging | Out-Null
+          Copy-Item -Recurse dist\x64, dist\arm64 staging\
+          Copy-Item portable\*.bat, README.md staging\
+          Compress-Archive -Path staging\* -DestinationPath "installer\Output\IpvThumb-portable-$v.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: installer/Output/*
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/*
+          generate_release_notes: true

@@ -1,0 +1,10 @@
+out/
+dist/
+samples/
+installer/Output/
+staging/
+*.obj
+*.exp
+*.lib
+*.pdb
+__pycache__/
