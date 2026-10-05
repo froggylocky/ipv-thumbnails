@@ -67,7 +67,9 @@ with your account as a test user.
    - Click **+** next to Files › **Script** three times, naming them `Thumbs`,
      `Png` and `ipv`, and paste `Thumbs.gs`, `Png.gs` and `ipv.gs` into them.
 4. Optional, at the top of `Addon`: set `VIEWER_URL` to your IPV Viewer address
-   to get an **Open in IPV Viewer** button for browsing layers.
+   to get an **Open in IPV Viewer** button for browsing layers. To use the IPV
+   Viewer logo in Drive, set `LOGO_URL` there and `logoUrl` in `appsscript.json`
+   to `https://<your-username>.github.io/<repo-name>/icons/icon-128.png`.
 5. Click **Save**, then **Deploy** › **Test deployments** › make sure
    **Google Workspace add-on** is the application type › **Install** › **Done**.
 6. Open [drive.google.com](https://drive.google.com) and refresh. Click the
@@ -187,7 +189,7 @@ is there for the privacy-policy link it asks for.
 This adds IPV Viewer to Drive's right-click menu for `.ipv` files.
 
 1. In the Cloud console, open **Google Drive API** › **Drive UI integration**.
-2. Fill in the app name and descriptions, upload the icons from `docs/icons/`,
+2. Fill in the app name and descriptions, upload `icon-16` to `icon-256` from `docs/icons/`,
    set **Open URL** to `https://<your-username>.github.io/<repo-name>/`, and add
    `ipv` under **Default file extensions**. Save.
 3. On the consent screen's data access, also add the scope
@@ -212,4 +214,5 @@ add them to `tests/samples/` (any `.ipv` there must parse successfully).
 | `docs/` | IPV Viewer web page and Google Drive features (GitHub Pages) |
 | `docs/ipv.js` | Format parser for the browser (tested by `tests/test_ipv_js.cjs`) |
 | `docs/config.js` | Your Google Cloud values for the Drive features |
+| `docs/icons/` | Logo: `icon-16`/`32`/`48` (compact ".ipv"), `icon-64` to `512` (full logo), `app.ico` (Windows installer), `logo-original.png` |
 | `drive-addon/` | Google Drive add-on (Apps Script); `ipv.gs` is a copy of `docs/ipv.js` |

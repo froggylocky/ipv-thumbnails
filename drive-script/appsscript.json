@@ -6,21 +6,5 @@
     "enabledAdvancedServices": [
       { "userSymbol": "Drive", "serviceId": "drive", "version": "v3" }
     ]
-  },
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/drive.addons.metadata.readonly",
-    "https://www.googleapis.com/auth/script.scriptapp"
-  ],
-  "addOns": {
-    "common": {
-      "name": "IPV Thumbnails",
-      "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/photo_library_black_48dp.png",
-      "layoutProperties": { "primaryColor": "#4F7FE0", "secondaryColor": "#B9A6F2" },
-      "homepageTrigger": { "runFunction": "onHomepage", "enabled": true }
-    },
-    "drive": {
-      "onItemsSelectedTrigger": { "runFunction": "onDriveItemsSelected" }
-    }
   }
 }

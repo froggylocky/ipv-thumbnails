@@ -29,10 +29,13 @@ OutputBaseFilename=IpvThumb-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\docs\icons\app.ico
+UninstallDisplayIcon={app}\app.ico
 
 [Files]
 Source: "..\dist\x64\IpvThumb.dll";   DestDir: "{app}"; Check: not IsARM64; Flags: ignoreversion
 Source: "..\dist\arm64\IpvThumb.dll"; DestDir: "{app}"; Check: IsARM64;     Flags: ignoreversion
+Source: "..\docs\icons\app.ico";        DestDir: "{app}";                        Flags: ignoreversion
 
 [Run]
 Filename: "{sys}\regsvr32.exe"; Parameters: "/s ""{app}\IpvThumb.dll"""; \

@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>IPV Viewer: open ibisPaint files in your browser</title>
 <meta name="description" content="View ibisPaint X .ipv files and their layers in your browser, and add thumbnails for them in Google Drive.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='8' width='20' height='20' rx='3' fill='%23B9A6F2'/><rect x='9' y='3' width='20' height='20' rx='3' fill='%234F7FE0'/></svg>">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+<link rel="apple-touch-icon" href="icons/icon-256.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
@@ -58,7 +60,7 @@
     font: 700 22px/1 var(--font-title); letter-spacing: -0.01em; margin: 0;
     display: flex; align-items: center; gap: 10px;
   }
-  .bar h1 svg { width: 26px; height: 26px; flex: none; }
+  .bar h1 img { width: 30px; height: 30px; flex: none; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); }
   .file-label { color: var(--ink-soft); margin: 0; min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn {
@@ -158,7 +160,7 @@
 <body>
   <header class="bar">
     <h1>
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="8" width="20" height="20" rx="3" fill="#B9A6F2"/><rect x="9" y="3" width="20" height="20" rx="3" fill="#4F7FE0" opacity=".9"/></svg>
+      <img src="icons/mark-96.png" width="30" height="30" alt="">
       IPV Viewer
     </h1>
     <p class="file-label" id="fileLabel">Open ibisPaint X files without ibisPaint.</p>
