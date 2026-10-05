@@ -6,6 +6,8 @@
 //
 // Valid samples from make_samples.py have a red top-left and blue bottom-right
 // quadrant, so a flipped or mirrored thumbnail fails the test.
+// Explorer only ever uses the HBITMAP through GDI, so the test reads it back the
+// same way (GetDIBits) rather than poking at the DIB section's memory.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shlwapi.h>
@@ -13,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cwchar>
+#include <vector>
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "ole32.lib")
@@ -34,6 +37,8 @@ int wmain(int argc, wchar_t** argv) {
         std::printf("usage: smoke_test IpvThumb.dll file.ipv <width> <height> | fail\n");
         return 2;
     }
+    // Unbuffered output, so messages survive even if something crashes.
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
     const bool expectFail = std::wcscmp(argv[3], L"fail") == 0;
     int ew = 0, eh = 0;
     if (!expectFail) {
@@ -95,17 +100,27 @@ int wmain(int argc, wchar_t** argv) {
         std::printf("FAIL: thumbnail is %dx%d, expected %dx%d\n", w, h, ew, eh);
         return 1;
     }
-    const BYTE* bits = (const BYTE*)ds.dsBm.bmBits;
-    const bool topDown = ds.dsBmih.biHeight < 0;
-    auto px = [&](int x, int y) {
-        int row = topDown ? y : (h - 1 - y);
-        return bits + row * ds.dsBm.bmWidthBytes + x * 4;   // BGRA
-    };
+    // Ask GDI for the pixels as top-down 32-bit BGRA in our own buffer. (Don't
+    // inspect the DIB section directly: GetObject reports a positive height even
+    // for top-down DIBs, so the row order can't be inferred from it.)
+    std::vector<BYTE> pixels((size_t)w * h * 4);
+    BITMAPINFO bi = {};
+    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth       = w;
+    bi.bmiHeader.biHeight      = -h;                      // request top-down rows
+    bi.bmiHeader.biPlanes      = 1;
+    bi.bmiHeader.biBitCount    = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HDC dc = GetDC(nullptr);
+    const int lines = GetDIBits(dc, hbmp, 0, (UINT)h, pixels.data(), &bi, DIB_RGB_COLORS);
+    ReleaseDC(nullptr, dc);
+    DeleteObject(hbmp);                                    // safe: we only use our copy now
+    if (lines != h) return Fail("GetDIBits", E_FAIL);
+    auto px = [&](int x, int y) { return &pixels[((size_t)y * w + x) * 4]; };   // BGRA
     const BYTE* tl = px(2, 2);
     const BYTE* br = px(w - 3, h - 3);
     const bool tlRed  = tl[2] > 200 && tl[1] < 60 && tl[0] < 60;
     const bool brBlue = br[0] > 200 && br[1] < 60 && br[2] < 60;
-    DeleteObject(hbmp);
     if (!tlRed || !brBlue) {
         std::printf("FAIL: wrong colours/orientation. top-left BGRA=%d,%d,%d bottom-right BGRA=%d,%d,%d\n",
                     tl[0], tl[1], tl[2], br[0], br[1], br[2]);
