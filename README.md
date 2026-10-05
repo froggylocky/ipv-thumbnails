@@ -34,12 +34,57 @@ Works on Windows 10 and 11, on both regular (x64) PCs and ARM PCs.
 
 ## Google Drive
 
-Open IPV Viewer and click **Add Drive thumbnails**, then **Choose files in
-Drive** and pick your `.ipv` files. Each one gets its finished artwork as its
-Drive thumbnail. The page only gets access to the files you pick.
+There are three ways to see your `.ipv` artwork in Google Drive. The first
+needs no Google Cloud setup.
 
-Thumbnails can take a few minutes to show up. Drive removes a custom thumbnail
-when a new version of the file is uploaded, so add it again after re-uploading.
+### Option 1: Apps Script (easiest, no Google Cloud)
+
+A small script that runs in your own Google account and gives every `.ipv`
+file in your Drive its artwork as its Drive thumbnail. It can keep running
+every hour, so new and re-uploaded files are handled automatically.
+
+1. Go to [script.google.com](https://script.google.com) and click **New project**.
+   Click "Untitled project" at the top and name it **IPV Thumbnails**.
+2. Click the gear icon (**Project Settings**) and tick
+   **Show "appsscript.json" manifest file in editor**.
+3. Back in the editor (the `< >` icon), set up three files. For each one,
+   select everything in the editor and paste over it:
+   - `appsscript.json`: paste [`drive-script/appsscript.json`](drive-script/appsscript.json).
+     This switches on the Drive service the script uses.
+   - `Code.gs`: paste [`drive-script/Code.gs`](drive-script/Code.gs).
+   - Click **+** next to Files › **Script**, name it `ipv`, and paste
+     [`drive-script/ipv.gs`](drive-script/ipv.gs).
+4. Click **Save** (the disk icon). In the toolbar, pick **addThumbnails** from
+   the function list and click **Run**.
+5. The first time, Google asks for permission. Choose your account. You'll see
+   **"Google hasn't verified this app"**: that appears for any personal script.
+   Click **Advanced** › **Go to IPV Thumbnails (unsafe)** › **Allow**. The script
+   runs only in your account, and nobody else gets access to your Drive.
+6. The log at the bottom lists each file. If it says **Paused**, click **Run**
+   again; large Drives can take a few runs.
+7. Optional: pick **turnOnAutoUpdate** and click **Run** to repeat this every
+   hour. **turnOffAutoUpdate** stops it.
+
+Drive can take a few minutes to show new thumbnails. Artwork larger than
+Drive's 2 MB thumbnail limit is skipped by the script (the log says which);
+Option 2 can shrink those.
+
+### Option 2: IPV Viewer web page
+
+Open IPV Viewer and click **Add Drive thumbnails**, then **Choose files in
+Drive** and pick your `.ipv` files. The page only gets access to the files you
+pick. This needs the one-time Google Cloud setup under "For maintainers".
+
+### Option 3: Google Drive for desktop (Windows only)
+
+If you install [Google Drive for desktop](https://www.google.com/drive/download/)
+along with the Windows thumbnail installer above, your Drive appears in File
+Explorer and its `.ipv` files get thumbnails there, with no other setup. These
+show on that PC only, not on drive.google.com. If Drive for desktop is set to
+stream files, Windows downloads each `.ipv` file to make its thumbnail.
+
+Drive removes a custom thumbnail when a new version of the file is uploaded.
+Option 1 with auto-update re-adds it on its own; with Option 2, add it again.
 
 ## How it works
 
@@ -61,7 +106,7 @@ Layer opacity, blend modes, order, and names are not decoded yet.
 GitHub Actions builds everything; you don't need Visual Studio.
 
 - **Every push or pull request**: tests both parsers (C++ and the web viewer's
-  JavaScript) on Linux, builds x64 and
+  JavaScript) and the Apps Script on Linux, builds x64 and
   ARM64 DLLs, loads the x64 DLL and renders test thumbnails exactly as Explorer
   would (checking the size and that the image isn't flipped), then builds the
   installer. The results are under the run's **Artifacts**.
@@ -80,7 +125,9 @@ folder: `/docs` › Save. After a minute the viewer is live at
 `https://<your-username>.github.io/<repo-name>/`. Opening local files works
 straight away; Drive needs the setup below.
 
-### Google Drive setup (one time, free)
+### Google Drive setup for the web page (one time, free)
+
+Only needed for Option 2 above. Option 1 (Apps Script) doesn't need any of this.
 
 You need a Google Cloud project so Google knows which site is asking for access.
 In the [Google Cloud console](https://console.cloud.google.com/):
@@ -141,3 +188,4 @@ add them to `tests/samples/` (any `.ipv` there must parse successfully).
 | `docs/` | IPV Viewer web page and Google Drive features (GitHub Pages) |
 | `docs/ipv.js` | Format parser for the browser (tested by `tests/test_ipv_js.cjs`) |
 | `docs/config.js` | Your Google Cloud values for the Drive features |
+| `drive-script/` | Apps Script version of the Drive thumbnails (no Google Cloud) |
