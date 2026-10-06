@@ -69,7 +69,7 @@ with your account as a test user.
 4. Optional, at the top of `Addon`: set `VIEWER_URL` to your IPV Viewer address
    to get an **Open in IPV Viewer** button for browsing layers. To use the IPV
    Viewer logo in Drive, set `LOGO_URL` there and `logoUrl` in `appsscript.json`
-   to `https://<your-username>.github.io/<repo-name>/icons/icon-128.png`.
+   to `https://github.com/froggylocky/ipv-thumbnails/blob/main/docs/icons/icon-128.png`.
 5. Click **Save**, then **Deploy** › **Test deployments** › make sure
    **Google Workspace add-on** is the application type › **Install** › **Done**.
 6. Open [drive.google.com](https://drive.google.com) and refresh. Click the
