@@ -4,8 +4,9 @@ See your ibisPaint X `.ipv` artwork without opening ibisPaint:
 
 - **Windows File Explorer**: thumbnails for `.ipv` files (installer below).
 - **IPV Viewer** (web, in `docs/`): open an `.ipv` file in any browser to see
-  the finished artwork and every layer, save them as PNGs, and add thumbnails
-  to your `.ipv` files in **Google Drive**. Once GitHub Pages is on, it lives at
+  the finished artwork and every layer (in ibisPaint's stacking order), watch a
+  **timelapse** of how it was drawn, rotate the view, save layers as PNGs, and
+  add thumbnails to your `.ipv` files in **Google Drive**. Once GitHub Pages is on, it lives at
   `https://froggylocky.github.io/ipv-thumbnails/`.
 
 ## Install (Windows thumbnails)
@@ -124,7 +125,28 @@ an `.ipv`, just shows the normal icon.
 
 `tools/ipv_extract.py` also exports every layer as a PNG
 (`pip install pillow numpy`, then `python tools/ipv_extract.py file.ipv outdir`).
-Layer opacity, blend modes, order, and names are not decoded yet.
+### Timelapse
+
+An `.ipv` also stores the whole drawing history, which is what ibisPaint
+replays for its own timelapse. IPV Viewer reads:
+
+| Entry | What it records |
+| --- | --- |
+| `0x02000300` | a brush stroke: colour, size, its points, and the layer's position in the stack |
+| `0x02000400` | a bucket fill: its layer and the point that was tapped |
+| `0x03000600` | the layer stack before and after adding, moving or deleting layers |
+| `0x03000400` | every layer's visibility, clipping and opacity at that moment |
+| `0x01000600` | the final layer table: order, visibility, clipping, opacity |
+
+Copying ibisPaint's brushes exactly isn't possible, so the replay works the
+other way round: each layer's real final pixels start hidden, every stroke
+uncovers them along its path, and every fill uncovers the patch of paint
+around where it was tapped (ibisPaint stores only undo data for fills). Layers
+show, hide and change opacity as they did while drawing, and the last moment
+fades into ibisPaint's own finished image. Things drawn and later erased don't
+appear, and painted-over areas show their final colour early.
+
+Layer names and blend modes aren't decoded yet.
 
 ## For maintainers
 
@@ -247,6 +269,7 @@ add them to `tests/samples/` (any `.ipv` there must parse successfully).
 | `tools/ipv_extract.py` | Exports the final image and layers as PNGs |
 | `docs/` | IPV Viewer web page and Google Drive features (GitHub Pages) |
 | `docs/ipv.js` | Format parser for the browser (tested by `tests/test_ipv_js.cjs`) |
+| `docs/timelapse.js` | Drawing-history parser and timelapse player (also tested by `tests/test_ipv_js.cjs`) |
 | `docs/config.js` | Your Google Cloud values for the Drive features |
 | `docs/icons/` | Logo: `icon-16`/`32`/`48` (compact ".ipv"), `icon-64` to `512` (full logo), `app.ico` (Windows installer), `logo-original.png` |
 | `drive-addon/` | Google Drive add-on (Apps Script); `ipv.gs` is a copy of `docs/ipv.js` |
