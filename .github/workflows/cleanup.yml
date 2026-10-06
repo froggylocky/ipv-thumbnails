@@ -3009,8 +3009,9 @@ jobs:
             # Everything except its .github folder now; that last bit is tried separately,
             # because GitHub may not let a workflow delete workflow files.
             git rm -r -q --ignore-unmatch -- ipv-thumbnails ':(exclude)ipv-thumbnails/.github'
-            find ipv-thumbnails -mindepth 1 -maxdepth 1 ! -name .github -exec rm -rf {} +
-            echo "Removed the nested ipv-thumbnails/ copy (apart from its .github folder, handled in the next step)"
+            # (git rm deletes the folder itself if nothing is left in it, so check first)
+            if [ -d ipv-thumbnails ]; then find ipv-thumbnails -mindepth 1 -maxdepth 1 ! -name .github -exec rm -rf {} +; fi
+            echo "Removed the nested ipv-thumbnails/ copy"
           fi
           echo "::endgroup::"
           git add -A -- . ':(exclude).github' ':(exclude)ipv-thumbnails/.github'
