@@ -48,15 +48,31 @@
     return c;
   }
 
+  // Everything shown on the stage goes through here, so rotation applies to the
+  // artwork, single layers and timelapse frames alike. Saved PNGs stay unrotated.
+  let rotation = 0, currentSource = null;
   function showOnStage(source) {
-    view.width = source.width;
-    view.height = source.height;
+    currentSource = source;
+    const swap = rotation % 180 !== 0, w = source.width, h = source.height;
+    if (view.width !== (swap ? h : w)) view.width = swap ? h : w;
+    if (view.height !== (swap ? w : h)) view.height = swap ? w : h;
     const ctx = view.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, view.width, view.height);
-    ctx.drawImage(source, 0, 0);
+    ctx.translate(view.width / 2, view.height / 2);
+    ctx.rotate(rotation * Math.PI / 180);
+    ctx.drawImage(source, -w / 2, -h / 2);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     view.hidden = false;
     empty.hidden = true;
   }
+  function rotate(by) {
+    rotation = (rotation + by + 360) % 360;
+    if (currentSource) showOnStage(currentSource);
+    $('#rotLabel').textContent = rotation ? `${rotation}°` : '';
+  }
+  $('#rotL').addEventListener('click', () => rotate(-90));
+  $('#rotR').addEventListener('click', () => rotate(90));
 
   function showMessage(title, text, isError) {
     view.hidden = true;
@@ -118,9 +134,11 @@
       save.addEventListener('click', async () => download(await getCanvas(), filename));
       li.append(save);
       pick.addEventListener('click', async () => {
+        setMode('art');
         list.querySelectorAll('.layer-pick').forEach((b) => b.setAttribute('aria-pressed', 'false'));
         pick.setAttribute('aria-pressed', 'true');
-        showOnStage(await getCanvas());
+        artSource = await getCanvas();
+        showOnStage(artSource);
       });
     }
     list.append(li);
@@ -158,13 +176,41 @@
     layersEmpty.hidden = true;
     const base = baseName(name);
 
+    // The drawing history gives the real layer order and the timelapse.
+    stopTimelapse();
+    let history = null;
+    try { history = IPVTimelapse.parseHistory(buf); } catch (e) { history = null; }
+    tl = { info, history, final: null, player: null, building: null };
+    const table = history && history.finalTable && history.finalTable.length ? history.finalTable : null;
+    $('#layerNote').textContent = table ? 'Top layer first, as in ibisPaint.' : 'Numbered by ibisPaint\'s internal layer ID, which isn\'t always the stacking order.';
+    let ordered = [...info.layers].reverse();
+    if (table) {
+      const rank = new Map(table.map((r, i) => [r.id, i]));
+      ordered = [...info.layers].sort((x, y) => (rank.has(y.id) ? rank.get(y.id) : -1) - (rank.has(x.id) ? rank.get(x.id) : -1));
+    }
+    const props = new Map((table || []).map((r) => [r.id, r]));
+    const describe = (layer) => {
+      const r = props.get(layer.id), bits = [];
+      if (r && !r.visible) bits.push('Hidden');
+      if (r && r.clip) bits.push('Clipped');
+      if (r && r.opacity < 0.995) bits.push(`${Math.round(r.opacity * 100)}% opacity`);
+      return bits;
+    };
+    const hasTimelapse = Boolean(history && history.steps > 0 && info.composite);
+    $('#stageBar').hidden = false;
+    $('#tabTl').disabled = !hasTimelapse;
+    $('#tabTl').title = hasTimelapse ? '' : 'No drawing history found in this file';
+    setMode('art');
+
     if (info.composite) {
       const bmp = await bitmapFromPng(info.composite);
       if (id !== loadId) return;
       const full = canvasFrom(bmp, bmp.width, bmp.height);
+      tl.final = full;
       const item = addLayerItem('Finished artwork', `${bmp.width} × ${bmp.height}`, async () => full, `${base}_final.png`, false);
       drawThumb(item.thumb, full);
       item.pick.setAttribute('aria-pressed', 'true');
+      artSource = full;
       showOnStage(full);
     }
     if (!info.complete) toast('This file seems incomplete; showing what could be read.');
@@ -172,19 +218,20 @@
     // Layers: build each one once for its thumbnail, then rebuild on demand so
     // a 30-layer file doesn't hold 30 full-size images in memory.
     let shownFirst = Boolean(info.composite);
-    for (const layer of [...info.layers].reverse()) {
+    for (const layer of ordered) {
       if (id !== loadId) return;
+      const extra = describe(layer);
       if (layer.empty) {
-        addLayerItem(`Layer ${layer.id}`, layer.damaged ? 'Couldn\'t be read' : 'Empty', null, '', true);
+        addLayerItem(`Layer ${layer.id}`, [layer.damaged ? 'Couldn\'t be read' : 'Empty', ...extra].join(', '), null, '', true);
         continue;
       }
       const get = () => layerCanvas(layer);
-      const item = addLayerItem(`Layer ${layer.id}`, `${layer.bw} × ${layer.bh} area`, get, `${base}_layer_${String(layer.id).padStart(2, '0')}.png`, false);
+      const item = addLayerItem(`Layer ${layer.id}`, [`${layer.bw} × ${layer.bh} area`, ...extra].join(', '), get, `${base}_layer_${String(layer.id).padStart(2, '0')}.png`, false);
       try {
         const c = await get();
         if (id !== loadId) return;
         drawThumb(item.thumb, c, { x: layer.bx, y: layer.ch - layer.by - layer.bh, w: layer.bw, h: layer.bh });
-        if (!shownFirst) { showOnStage(c); item.pick.setAttribute('aria-pressed', 'true'); shownFirst = true; }
+        if (!shownFirst) { artSource = c; showOnStage(c); item.pick.setAttribute('aria-pressed', 'true'); shownFirst = true; }
       } catch (e) {
         item.metaEl.textContent = 'Couldn\'t be read';
         item.pick.disabled = true;
@@ -208,6 +255,116 @@
     e.preventDefault();
     stage.classList.remove('drag');
     openFile(e.dataTransfer.files[0]);
+  });
+
+  // ------------------------------------------------------------------ timelapse
+  let tl = null, artSource = null, mode = 'art';
+  const play = { on: false, raf: 0, last: 0, acc: 0, fadeStart: 0 };
+  const FADE_MS = 1500;
+
+  function setMode(m) {
+    mode = m;
+    $('#tabArt').setAttribute('aria-selected', String(m === 'art'));
+    $('#tabTl').setAttribute('aria-selected', String(m === 'tl'));
+    $('#player').hidden = m !== 'tl';
+    if (m === 'art') {
+      stopTimelapse();
+      if (artSource) showOnStage(artSource);
+    }
+  }
+
+  function stopTimelapse() {
+    play.on = false;
+    cancelAnimationFrame(play.raf);
+    $('#tlPlay').textContent = 'Play';
+    $('#tlPlay').setAttribute('aria-label', 'Play timelapse');
+  }
+
+  // Decode every layer once and hand them to the player.
+  async function buildPlayer() {
+    if (tl.player) return tl.player;
+    if (tl.building) return tl.building;
+    tl.building = (async () => {
+      const layers = new Map(), usable = tl.info.layers.filter((l) => !l.empty);
+      let n = 0;
+      for (const L of usable) {
+        $('#tlLabel').textContent = `Preparing… ${++n} of ${usable.length} layers`;
+        try {
+          const canvas = await layerCanvas(L);
+          layers.set(L.id, { canvas, bw: L.bw, bh: L.bh, bx: L.bx, by: L.ch - L.by - L.bh });
+        } catch (e) { /* a layer that can't be read just won't appear */ }
+      }
+      const W = tl.final.width, H = tl.final.height;
+      tl.player = new IPVTimelapse.Player(tl.history, layers, tl.final, W, H, 1024);
+      return tl.player;
+    })();
+    return tl.building;
+  }
+
+  function stepsPerSecond() {
+    const speed = Number($('#tlSpeed').value) || 1;
+    return speed * Math.max(10, tl.player.steps / 30);              // about 30 seconds at 1×
+  }
+
+  function updateLabel() {
+    const p = tl.player;
+    $('#tlSeek').value = String(p.step);
+    $('#tlLabel').textContent = p.step >= p.steps ? 'Finished' : `Step ${p.step} of ${p.steps}`;
+  }
+
+  function drawFrame(fade) {
+    const p = tl.player;
+    if (fade >= 1) { showOnStage(tl.final); return; }               // end exactly on the real picture
+    showOnStage(p.render(fade));
+  }
+
+  function tick(now) {
+    if (!play.on) return;
+    const p = tl.player, dt = Math.min(100, now - play.last);
+    play.last = now;
+    if (p.step < p.steps) {
+      play.acc += dt / 1000 * stepsPerSecond();
+      const n = Math.floor(play.acc);
+      if (n > 0) { play.acc -= n; p.seek(p.step + n); }
+      drawFrame(0);
+      if (p.step >= p.steps) play.fadeStart = now;
+    } else {
+      const f = Math.min(1, (now - play.fadeStart) / FADE_MS);
+      drawFrame(f);
+      if (f >= 1) { updateLabel(); stopTimelapse(); return; }
+    }
+    updateLabel();
+    play.raf = requestAnimationFrame(tick);
+  }
+
+  async function startTimelapse() {
+    const p = await buildPlayer();
+    $('#tlSeek').max = String(p.steps);
+    if (p.step >= p.steps) p.seek(0);                                // play again from the start
+    play.on = true; play.last = performance.now(); play.acc = 0;
+    $('#tlPlay').textContent = 'Pause';
+    $('#tlPlay').setAttribute('aria-label', 'Pause timelapse');
+    play.raf = requestAnimationFrame(tick);
+  }
+
+  $('#tabArt').addEventListener('click', () => setMode('art'));
+  $('#tabTl').addEventListener('click', async () => {
+    if (!tl || $('#tabTl').disabled) return;
+    setMode('tl');
+    const p = await buildPlayer();
+    $('#tlSeek').max = String(p.steps);
+    if (mode !== 'tl') return;
+    updateLabel();
+    drawFrame(p.step >= p.steps ? 1 : 0);
+  });
+  $('#tlPlay').addEventListener('click', () => { if (play.on) stopTimelapse(); else startTimelapse(); });
+  $('#tlSeek').addEventListener('input', async () => {
+    const p = await buildPlayer();
+    p.seek(Number($('#tlSeek').value));
+    play.acc = 0;
+    if (p.step >= p.steps) play.fadeStart = performance.now() - FADE_MS;
+    updateLabel();
+    drawFrame(p.step >= p.steps ? 1 : 0);
   });
 
   // ------------------------------------------------------------------ Google sign-in
