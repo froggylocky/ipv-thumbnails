@@ -139,7 +139,12 @@
   #driveResults .status { font-size: 13px; color: var(--ink-soft); }
   #driveResults .status.ok { color: var(--ok); }
   #driveResults .status.err { color: var(--err); }
-  #driveSummary:empty { display: none; }
+  #driveSummary:empty, #installResult:empty { display: none; }
+  .dlg h3 { font: 700 16px/1.2 var(--font-title); margin: 4px 0 2px; }
+  .openwith { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+  #driveSetupReady[hidden] ~ .openwith { padding-top: 0; border-top: 0; }
+  .dlg p.ok-text { color: var(--ok); font-weight: 600; }
+  .dlg p.error-text { color: var(--err); font-weight: 600; }
 
   .toast {
     position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
@@ -167,7 +172,7 @@
     <div class="actions">
       <label class="btn" for="fileInput" tabindex="0" id="openLabel">Open file</label>
       <input type="file" id="fileInput" accept=".ipv" hidden>
-      <button class="btn primary" id="driveBtn" type="button">Add Drive thumbnails</button>
+      <button class="btn primary" id="driveBtn" type="button">Google Drive</button>
     </div>
   </header>
 
@@ -190,15 +195,22 @@
 
   <dialog id="driveDialog" aria-labelledby="driveTitle">
     <div class="dlg">
-      <h2 id="driveTitle">Add thumbnails in Google Drive</h2>
+      <h2 id="driveTitle">Google Drive</h2>
       <div id="driveSetupMissing" hidden>
         <p>Google Drive isn't connected on this copy of the site yet. Whoever runs it needs to fill in <code>config.js</code>; the steps are in the README under "Google Drive setup".</p>
       </div>
       <div id="driveSetupReady" hidden>
+        <h3>Add thumbnails</h3>
         <p>Choose .ipv files in your Drive. Each one gets its finished artwork as its thumbnail, so you can see it in Drive's file grid.</p>
         <p class="fine">This site only gets access to the files you choose. Drive can take a few minutes to show new thumbnails. Uploading a new version of a file removes its thumbnail, so add it again afterwards. <a href="privacy.html">Privacy</a></p>
       </div>
       <ul id="driveResults" aria-live="polite"></ul>
+      <div id="openWithSetup" class="openwith" hidden>
+        <h3>Open .ipv files from Drive</h3>
+        <p>Adds IPV Viewer to Drive's <b>Open with</b> menu and to the <b>Connected apps</b> list when Drive can't preview an .ipv file. You only need to do this once.</p>
+        <div><button class="btn" type="button" id="installOpenWith">Add IPV Viewer to Drive</button></div>
+        <p id="installResult" role="status"></p>
+      </div>
       <p id="driveSummary" role="status"></p>
       <footer>
         <button class="btn" type="button" id="driveClose">Close</button>

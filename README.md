@@ -6,7 +6,7 @@ See your ibisPaint X `.ipv` artwork without opening ibisPaint:
 - **IPV Viewer** (web, in `docs/`): open an `.ipv` file in any browser to see
   the finished artwork and every layer, save them as PNGs, and add thumbnails
   to your `.ipv` files in **Google Drive**. Once GitHub Pages is on, it lives at
-  `https://<your-username>.github.io/<repo-name>/`.
+  `https://froggylocky.github.io/ipv-thumbnails/`.
 
 ## Install (Windows thumbnails)
 
@@ -69,7 +69,7 @@ with your account as a test user.
 4. Optional, at the top of `Addon`: set `VIEWER_URL` to your IPV Viewer address
    to get an **Open in IPV Viewer** button for browsing layers. To use the IPV
    Viewer logo in Drive, set `LOGO_URL` there and `logoUrl` in `appsscript.json`
-   to `https://github.com/froggylocky/ipv-thumbnails/blob/main/docs/icons/icon-128.png`.
+   to `https://froggylocky.github.io/ipv-thumbnails/icons/icon-128.png`.
 5. Click **Save**, then **Deploy** › **Test deployments** › make sure
    **Google Workspace add-on** is the application type › **Install** › **Done**.
 6. Open [drive.google.com](https://drive.google.com) and refresh. Click the
@@ -147,13 +147,14 @@ GitHub Actions builds everything; you don't need Visual Studio.
 
 Repo **Settings › Pages** › Source: **Deploy from a branch** › Branch: `main`,
 folder: `/docs` › Save. After a minute the viewer is live at
-`https://<your-username>.github.io/<repo-name>/`. Opening local files works
+`https://froggylocky.github.io/ipv-thumbnails/`. Opening local files works
 straight away; Drive needs the setup below.
 
 ### Google Drive setup for the web page (one time, free)
 
 Needed for the web page (Option 2). The add-on (Option 1) needs steps 1 to 3
-and 6; steps 4, 5 and 7 are only for the web page.
+and 6; steps 4, 5 and 7 are only for the web page. For "Open with", see the
+next section.
 
 You need a Google Cloud project so Google knows which site is asking for access.
 In the [Google Cloud console](https://console.cloud.google.com/):
@@ -168,10 +169,10 @@ In the [Google Cloud console](https://console.cloud.google.com/):
    add your own Google account (and up to 100 others) as **test users**.
 4. **OAuth client ID**: Credentials › Create credentials › OAuth client ID ›
    **Web application**. Under Authorized JavaScript origins, add
-   `https://<your-username>.github.io` (no path, no trailing slash). Copy the
+   `https://froggylocky.github.io` (no path, no trailing slash). Copy the
    client ID.
 5. **API key**: Credentials › Create credentials › API key. Edit it:
-   Application restrictions › **Websites** › `https://<your-username>.github.io/*`;
+   Application restrictions › **Websites** › `https://froggylocky.github.io/*`;
    API restrictions › **Restrict key** › Google Picker API. Copy the key.
 6. **Project number**: the Dashboard or Project settings page shows it (digits only).
 7. Put the three values in `docs/config.js` and commit.
@@ -184,21 +185,54 @@ consent screen. `drive.file` is Google's recommended low-access scope, but
 Google may still ask you to verify the app's name and homepage; `docs/privacy.html`
 is there for the privacy-policy link it asks for.
 
-### Optional: "Open with › IPV Viewer" in Drive
+### "Open with" and Connected apps: open .ipv files from Drive
 
-This adds IPV Viewer to Drive's right-click menu for `.ipv` files.
+Drive's own preview can't show `.ipv` artwork (no app can change that window),
+but it lists **Connected apps** under "Could not preview the file". This puts
+**IPV Viewer** in that list and in the right-click **Open with** menu, so one
+click opens the file's artwork and layers.
 
-1. In the Cloud console, open **Google Drive API** › **Drive UI integration**.
-2. Fill in the app name and descriptions, upload `icon-16` to `icon-256` from `docs/icons/`,
-   set **Open URL** to `https://<your-username>.github.io/<repo-name>/`, and add
-   `ipv` under **Default file extensions**. Save.
-3. On the consent screen's data access, also add the scope
+You need: the web viewer live on GitHub Pages, and the same Google Cloud project
+as the add-on, with your account as a test user on the OAuth consent screen.
+
+1. **OAuth client ID** (skip if you already made one for the web page):
+   APIs & Services › Credentials › Create credentials › OAuth client ID ›
+   **Web application**. Under Authorized JavaScript origins add
+   `https://froggylocky.github.io`. Copy the client ID.
+2. **Permissions**: on the OAuth consent screen's **Data access** page, add
+   `https://www.googleapis.com/auth/drive.file` and
    `https://www.googleapis.com/auth/drive.install`.
-4. Set `openWith: true` in `docs/config.js` and commit.
-5. Open IPV Viewer, click **Add Drive thumbnails › Choose files in Drive**, and
-   sign in once. That installs the app into your Drive. If it doesn't show up
-   under Open with afterwards, Google may require a Google Workspace Marketplace
-   listing for this step; the thumbnail feature works either way.
+3. **Drive UI integration**: APIs & Services › Enabled APIs & services ›
+   **Google Drive API** › **Drive UI integration** tab. Fill in:
+   - Application name: `IPV Viewer`, plus a short and long description.
+   - Application icons: upload the matching sizes from `docs/icons/`
+     (`icon-16.png` to `icon-256.png`).
+   - Open URL: `https://froggylocky.github.io/ipv-thumbnails/`
+   - Default file extensions: `ipv`
+   - Leave "Creating files" and "Importing" off. Turn on "Shared drives support"
+     if you keep `.ipv` files in shared drives.
+
+   Save.
+4. **config.js**: set `clientId` to the client ID and `openWith: true`. Commit,
+   and give GitHub Pages a minute to update. (`apiKey` and `appId` are only
+   needed for adding thumbnails from the web page.)
+5. **Install it into your Drive** (once): open IPV Viewer, click
+   **Google Drive** › **Add IPV Viewer to Drive**, and sign in. You'll see the
+   "unverified app" warning for your own app: **Advanced** › **Go to IPV Viewer**
+   › **Allow**.
+6. In Google Drive, refresh, then double-click an `.ipv` file: **IPV Viewer**
+   appears under Connected apps (right-click › **Open with** works too). It
+   opens the viewer; click **Load from Drive** to show the artwork. That click
+   is needed each time because browsers block Google's sign-in pop-up unless
+   you click something.
+
+If IPV Viewer doesn't appear after a few minutes and a refresh, Google may
+require the app to be installed through a Google Workspace Marketplace listing
+instead. That's set up under **Google Workspace Marketplace SDK** in the same
+Cloud project.
+
+With `VIEWER_URL` set in the add-on (`drive-addon/Addon.gs`), its **Open in IPV
+Viewer** button opens files the same way.
 
 Test files are generated by `tests/make_samples.py`. To also test real files,
 add them to `tests/samples/` (any `.ipv` there must parse successfully).

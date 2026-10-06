@@ -3,7 +3,9 @@
   'use strict';
 
   const cfg = window.IPV_CONFIG || {};
-  const driveConfigured = Boolean(cfg.clientId && cfg.apiKey && cfg.appId);
+  const signInConfigured = Boolean(cfg.clientId);                       // enough for "Open with"
+  const pickerConfigured = Boolean(cfg.clientId && cfg.apiKey && cfg.appId);  // needed to pick files
+  const openWithConfigured = signInConfigured && Boolean(cfg.openWith);
   const SCOPES = ['https://www.googleapis.com/auth/drive.file']
     .concat(cfg.openWith ? ['https://www.googleapis.com/auth/drive.install'] : [])
     .join(' ');
@@ -221,9 +223,9 @@
     });
   }
 
-  const googleReady = !driveConfigured ? null : Promise.all([
+  const googleReady = !signInConfigured ? null : Promise.all([
     loadScript('https://accounts.google.com/gsi/client'),
-    loadScript('https://apis.google.com/js/api.js').then(() => new Promise((resolve, reject) =>
+    !pickerConfigured ? null : loadScript('https://apis.google.com/js/api.js').then(() => new Promise((resolve, reject) =>
       gapi.load('picker', { callback: resolve, onerror: () => reject(new Error('Couldn\'t load Google Picker.')) }))),
   ]).then(() => {
     tokenClient = google.accounts.oauth2.initTokenClient({
@@ -251,12 +253,15 @@
 
   // Must be called directly from a click handler (before any await) so the
   // browser allows Google's sign-in pop-up.
-  function getToken() {
+  // `hint` (optional): the Google account to use, so no account chooser appears.
+  function getToken(hint) {
     if (accessToken && Date.now() < tokenExpiry - 60000) return Promise.resolve(accessToken);
     if (!tokenClient) return Promise.reject(new Error('Google is still loading. Try again in a moment.'));
     return new Promise((resolve, reject) => {
       pendingToken = { resolve, reject };
-      tokenClient.requestAccessToken({ prompt: accessToken ? '' : undefined });
+      const opts = { prompt: accessToken ? '' : undefined };
+      if (hint) opts.hint = hint;
+      tokenClient.requestAccessToken(opts);
     });
   }
 
@@ -388,10 +393,26 @@
 
   const dialog = $('#driveDialog');
   $('#driveBtn').addEventListener('click', () => {
-    $('#driveSetupMissing').hidden = driveConfigured;
-    $('#driveSetupReady').hidden = !driveConfigured;
-    $('#drivePick').hidden = !driveConfigured;
+    $('#driveSetupMissing').hidden = pickerConfigured || openWithConfigured;
+    $('#driveSetupReady').hidden = !pickerConfigured;
+    $('#drivePick').hidden = !pickerConfigured;
+    $('#openWithSetup').hidden = !openWithConfigured;
     dialog.showModal();
+  });
+
+  // Signing in with the drive.install permission is what adds IPV Viewer to
+  // Drive's "Open with" menu and to the "Connected apps" list in Drive's preview.
+  $('#installOpenWith').addEventListener('click', () => {
+    const btn = $('#installOpenWith'), out = $('#installResult');
+    btn.disabled = true;
+    out.textContent = '';
+    getToken()
+      .then(() => {
+        out.className = 'ok-text';
+        out.textContent = 'Done. In Google Drive, double-click an .ipv file and choose IPV Viewer under Connected apps, or right-click it › Open with › IPV Viewer. It can take a few minutes to appear; refresh Drive if it doesn\'t.';
+      })
+      .catch((e) => { out.className = 'error-text'; out.textContent = e.message; })
+      .finally(() => { btn.disabled = false; });
   });
   $('#driveClose').addEventListener('click', () => dialog.close());
 
@@ -415,7 +436,7 @@
     try { state = JSON.parse(new URLSearchParams(location.search).get('state') || 'null'); } catch (e) { /* ignore */ }
     if (!state || state.action !== 'open' || !Array.isArray(state.ids) || !state.ids.length) return;
     const fileId = state.ids[0];
-    if (!driveConfigured) {
+    if (!signInConfigured) {
       showMessage('Opened from Google Drive', 'Google Drive isn\'t connected on this copy of the site yet, so the file can\'t be loaded.', true);
       return;
     }
@@ -430,7 +451,7 @@
     box.append(row);
     btn.addEventListener('click', () => {
       btn.disabled = true;
-      getToken()
+      getToken(state.userId)
         .then(() => driveFetch(`${DRIVE}${encodeURIComponent(fileId)}?fields=name&supportsAllDrives=true`))
         .then((r) => r.json())
         .then(async (meta) => {
